@@ -1,6 +1,4 @@
+pub mod piece;
 pub mod piececolor;
-#[derive(Copy, Clone)]
-pub struct Piece {
-    pub name: char,
-    pub color: piececolor::PieceColor,
-}
+pub mod piecemove;
+pub mod piecename;
