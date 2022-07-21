@@ -1,6 +1,7 @@
 use super::piece::Piece;
 pub struct PieceMove {
-    name_piece: Piece,
-    destination: (i32, i32),
-    takes: bool,
+    pub piece: Piece,
+    pub destination: (usize, usize),
+    pub takes: bool,
+    pub puts_in_check: bool,
 }

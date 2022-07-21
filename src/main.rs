@@ -1,5 +1,6 @@
 use board::Board;
 mod board;
 fn main() {
-    let board: Board = Board::new();
+    let mut board: Board = Board::new();
+    board.compute_possible_moves();
 }
