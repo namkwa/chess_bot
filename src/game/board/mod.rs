@@ -1,10 +1,11 @@
+use core::fmt;
+
 use piece::piece::Piece;
 use piece::piececolor::PieceColor::*;
 use piece::piecemove::PieceMove;
 use piece::piecename::PieceName::*;
 
 use self::piece::piececolor::PieceColor;
-use self::piece::piecename::PieceName;
 mod piece;
 pub struct Board {
     pub board: [[Option<Piece>; 8]; 8],
@@ -69,26 +70,57 @@ impl Board {
         let mut next_possible_moves: Vec<PieceMove> = Vec::new();
         for (i, line) in self.board.into_iter().enumerate() {
             for (j, piece) in line.into_iter().enumerate() {
-                if piece != None {
-                    match piece.unwrap().name {
-                        Rook => next_possible_moves
-                            .append(&mut piece.unwrap().rook(self.board, i as i32, j as i32)),
-                        Knight => next_possible_moves
-                            .append(&mut piece.unwrap().knight(self.board, i as i32, j as i32)),
-                        Bishop => next_possible_moves
-                            .append(&mut piece.unwrap().bishop(self.board, i as i32, j as i32)),
-                        Queen => next_possible_moves
-                            .append(&mut piece.unwrap().bishop(self.board, i as i32, j as i32)),
-                        Queen => next_possible_moves
-                            .append(&mut piece.unwrap().rook(self.board, i as i32, j as i32)),
-                        King => next_possible_moves
-                            .append(&mut piece.unwrap().king(self.board, i as i32, j as i32)),
-                        Pawn => next_possible_moves
-                            .append(&mut piece.unwrap().pawn(self.board, i as i32, j as i32)),
-                    }
+                if piece.is_none() {
+                    continue;
+                }
+                match piece.unwrap().name {
+                    Rook => next_possible_moves
+                        .append(&mut piece.unwrap().rook(self.board, i as i32, j as i32)),
+                    Knight => next_possible_moves
+                        .append(&mut piece.unwrap().knight(self.board, i as i32, j as i32)),
+                    Bishop => next_possible_moves
+                        .append(&mut piece.unwrap().bishop(self.board, i as i32, j as i32)),
+                    Queen => next_possible_moves
+                        .append(&mut piece.unwrap().queen(self.board, i as i32, j as i32)),
+                    King => next_possible_moves
+                        .append(&mut piece.unwrap().king(self.board, i as i32, j as i32)),
+                    Pawn => next_possible_moves
+                        .append(&mut piece.unwrap().pawn(self.board, i as i32, j as i32)),
                 }
             }
         }
         self.possible_moves = next_possible_moves;
+    }
+}
+
+impl fmt::Display for Board {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut output: String = String::new();
+        output.push_str("\n-----------------------------------------\n");
+        for line in self.board.into_iter().rev() {
+            output.push('|');
+            for piece in line {
+                if piece.is_none() {
+                    output.push_str("    |");
+                    continue;
+                }
+                match (piece.unwrap().name, piece.unwrap().color) {
+                    (Rook, White) => output.push_str(" ♖  |"),
+                    (Rook, Black) => output.push_str(" ♜  |"),
+                    (Knight, White) => output.push_str(" ♘  |"),
+                    (Knight, Black) => output.push_str(" ♞  |"),
+                    (Bishop, White) => output.push_str(" ♗  |"),
+                    (Bishop, Black) => output.push_str(" ♝  |"),
+                    (Queen, White) => output.push_str(" ♕  |"),
+                    (Queen, Black) => output.push_str(" ♛  |"),
+                    (King, White) => output.push_str(" ♔  |"),
+                    (King, Black) => output.push_str(" ♚  |"),
+                    (Pawn, White) => output.push_str(" ♙  |"),
+                    (Pawn, Black) => output.push_str(" ♟  |"),
+                }
+            }
+            output.push_str("\n-----------------------------------------\n");
+        }
+        write!(f, "{}", output)
     }
 }

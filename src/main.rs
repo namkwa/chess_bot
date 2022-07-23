@@ -1,6 +1,6 @@
-use board::Board;
-mod board;
+use game::board::Board;
+mod game;
 fn main() {
-    let mut board: Board = Board::new();
-    board.compute_possible_moves();
+    let board: Board = Board::new();
+    println!("{}", board);
 }
