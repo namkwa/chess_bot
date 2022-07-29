@@ -1,5 +1,4 @@
 use self::board::Board;
-
 pub mod board;
 
 struct Game {
@@ -11,7 +10,7 @@ impl Game {
         Game { board }
     }
 
-    fn play() {
+    fn play(mut self) {
         let mut is_game_finished: bool = false;
         while !is_game_finished {}
     }
