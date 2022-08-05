@@ -1,6 +1,6 @@
 use core::fmt;
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PieceName {
     Rook,
     Knight,

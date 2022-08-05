@@ -1,4 +1,5 @@
 use core::fmt;
+use std::collections::HashSet;
 
 use piece::piece::Piece;
 use piece::piececolor::PieceColor::*;
@@ -10,8 +11,9 @@ pub mod piece;
 pub struct Board {
     pub board: [[Option<Piece>; 8]; 8],
     pub current_player: PieceColor,
-    pub possible_white_moves: Vec<PieceMove>,
-    pub possible_black_moves: Vec<PieceMove>,
+    pub possible_moves: HashSet<PieceMove>,
+    pub white_king_position: (usize, usize),
+    pub black_king_position: (usize, usize),
 }
 
 impl Board {
@@ -60,17 +62,17 @@ impl Board {
             Some(Piece::new(Knight, Black, false)),
             Some(Piece::new(Rook, Black, false)),
         ];
-        let possible_white_moves: Vec<PieceMove> = Vec::new();
-        let possible_black_moves: Vec<PieceMove> = Vec::new();
+        let possible_moves: HashSet<PieceMove> = HashSet::new();
         Board {
             board,
             current_player: White,
-            possible_white_moves,
-            possible_black_moves,
+            possible_moves,
+            white_king_position: (0, 4),
+            black_king_position: (7, 4),
         }
     }
     pub fn compute_possible_moves(&mut self) {
-        let mut next_possible_moves: Vec<PieceMove> = Vec::new();
+        let mut next_possible_moves: HashSet<PieceMove> = HashSet::new();
         for (i, line) in self.board.into_iter().enumerate() {
             for (j, piece) in line.into_iter().enumerate() {
                 if piece.is_none() || piece.unwrap().color != self.current_player {
@@ -78,21 +80,21 @@ impl Board {
                 }
                 match piece.unwrap().name {
                     Rook => next_possible_moves
-                        .append(&mut piece.unwrap().rook(self.board, i as i32, j as i32)),
+                        .extend(&mut piece.unwrap().rook(self.board, i as i32, j as i32).iter()),
                     Knight => next_possible_moves
-                        .append(&mut piece.unwrap().knight(self.board, i as i32, j as i32)),
+                        .extend(&mut piece.unwrap().knight(self.board, i as i32, j as i32).iter()),
                     Bishop => next_possible_moves
-                        .append(&mut piece.unwrap().bishop(self.board, i as i32, j as i32)),
+                        .extend(&mut piece.unwrap().bishop(self.board, i as i32, j as i32).iter()),
                     Queen => next_possible_moves
-                        .append(&mut piece.unwrap().queen(self.board, i as i32, j as i32)),
+                        .extend(&mut piece.unwrap().queen(self.board, i as i32, j as i32).iter()),
                     King => next_possible_moves
-                        .append(&mut piece.unwrap().king(self.board, i as i32, j as i32)),
+                        .extend(&mut piece.unwrap().king(self, i as i32, j as i32).iter()),
                     Pawn => next_possible_moves
-                        .append(&mut piece.unwrap().pawn(self.board, i as i32, j as i32)),
+                        .extend(&mut piece.unwrap().pawn(self.board, i as i32, j as i32).iter()),
                 }
             }
         }
-        self.possible_white_moves = next_possible_moves;
+        self.possible_moves = next_possible_moves;
     }
 
     pub fn execute_move(&mut self, current_position: (usize, usize), destination: (usize, usize)) {
@@ -103,49 +105,201 @@ impl Board {
             takes: false,
             puts_in_check: false,
         };
+        if move_to_execute.piece.name == King {
+            match move_to_execute.piece.color {
+                White => self.white_king_position = move_to_execute.destination,
+                Black => self.black_king_position = move_to_execute.destination,
+            }
+        }
         move_to_execute.piece.has_moved = true;
         self.board[move_to_execute.destination.0][move_to_execute.destination.1] =
             Some(move_to_execute.piece);
         self.board[move_to_execute.current_position.0][move_to_execute.current_position.1] = None;
     }
 
-    pub fn compute_legal_destinations(self, x: i32, y: i32) -> (Vec<(usize, usize)>, bool) {
-        let mut destinations: Vec<(usize, usize)> = Vec::new();
+    pub fn compute_edge_cases_rook(
+        &self,
+        x: i32,
+        y: i32,
+    ) -> (HashSet<(usize, usize)>, bool, HashSet<(usize, usize)>, bool) {
+        let mut destinations: HashSet<(usize, usize)> = HashSet::new();
+        let mut current_positions: HashSet<(usize, usize)> = HashSet::new();
         let mut is_checked: bool = false;
-        let coord_moves: [(i32, i32); 8] = [
-            (-1, 0),
-            (0, 1),
-            (0, -1),
-            (1, 0),
-            (-1, -1),
-            (-1, 1),
-            (1, -1),
-            (1, 1),
-        ];
+        let mut is_pinned: bool = false;
+        let coord_moves: [(i32, i32); 4] = [(-1, 0), (0, 1), (0, -1), (1, 0)];
         for (i, j) in coord_moves {
+            let mut has_met_same_color_piece: bool = false;
+            let mut temp_destinations: HashSet<(usize, usize)> = HashSet::new();
+            let mut temp_current_positions: HashSet<(usize, usize)> = HashSet::new();
             for distance in 1..8 {
-                let new_x: i32 = distance * (x + i);
-                let new_y: i32 = distance * (y + j);
-                let is_inbound: bool = new_x >= 0 && new_x < 8 && new_y >= 0 && new_y < 8;
+                let new_x: i32 = distance * i + x;
+                let new_y: i32 = distance * j + y;
+                if !(new_x >= 0 && new_x < 8 && new_y >= 0 && new_y < 8) {
+                    break;
+                }
                 let new_x: usize = new_x as usize;
                 let new_y: usize = new_y as usize;
-                if is_inbound && self.board[new_x][new_y].is_none() {
-                    destinations.push((new_x, new_y));
-                } else if is_inbound
-                    && self.board[new_x][new_y].unwrap().color == self.current_player
+                let square: Option<Piece> = self.board[new_x][new_y];
+                if square.is_none() {
+                    temp_destinations.insert((new_x, new_y));
+                } else if square.unwrap().color == self.current_player && !has_met_same_color_piece
                 {
-                } else if is_inbound
-                    && self.board[new_x][new_y].unwrap().color != self.current_player
+                    has_met_same_color_piece = true;
+                    temp_current_positions.insert((new_x, new_y));
+                } else if square.unwrap().color == self.current_player && has_met_same_color_piece {
+                    break;
+                } else if square.unwrap().color != self.current_player
+                    && has_met_same_color_piece
+                    && (square.unwrap().name == Bishop || square.unwrap().name == Queen)
                 {
+                    is_pinned = true;
+                    current_positions.extend(&mut temp_current_positions.iter());
+                    break;
+                } else if self.board[new_x][new_y].unwrap().color != self.current_player
+                    && !has_met_same_color_piece
+                    && (square.unwrap().name == Bishop || square.unwrap().name == Queen)
+                {
+                    is_checked = true;
+                    destinations.extend(&mut temp_destinations.iter());
+                    break;
                 }
+            }
+        }
+        return (destinations, is_checked, current_positions, is_pinned);
+    }
+
+    pub fn compute_edge_cases_knight(&self, x: i32, y: i32) -> (HashSet<(usize, usize)>, bool) {
+        let mut destinations: HashSet<(usize, usize)> = HashSet::new();
+        let mut is_checked: bool = false;
+        let coord_moves: [(i32, i32); 8] = [
+            (2, -1),
+            (2, 1),
+            (-2, -1),
+            (-2, 1),
+            (-1, 2),
+            (1, 2),
+            (-1, -2),
+            (1, -2),
+        ];
+        for (i, j) in coord_moves {
+            let new_x: i32 = i + x;
+            let new_y: i32 = j + y;
+            let is_inbound: bool = new_x >= 0 && new_x < 8 && new_y >= 0 && new_y < 8;
+            let new_x: usize = new_x as usize;
+            let new_y: usize = new_y as usize;
+            if is_inbound && self.current_player != self.board[new_x][new_y].unwrap().color {
+                is_checked = true;
+                destinations.insert((new_x, new_y));
             }
         }
         return (destinations, is_checked);
     }
 
+    pub fn compute_edge_cases_bishop(
+        &self,
+        x: i32,
+        y: i32,
+    ) -> (HashSet<(usize, usize)>, bool, HashSet<(usize, usize)>, bool) {
+        let mut destinations: HashSet<(usize, usize)> = HashSet::new();
+        let mut current_positions: HashSet<(usize, usize)> = HashSet::new();
+        let mut is_checked: bool = false;
+        let mut is_pinned: bool = false;
+        let coord_moves: [(i32, i32); 4] = [(-1, -1), (-1, 1), (1, -1), (1, 1)];
+        for (i, j) in coord_moves {
+            let mut has_met_same_color_piece: bool = false;
+            let mut temp_destinations: HashSet<(usize, usize)> = HashSet::new();
+            let mut temp_current_positions: HashSet<(usize, usize)> = HashSet::new();
+            for distance in 1..8 {
+                let new_x: i32 = distance * i + x;
+                let new_y: i32 = distance * j + y;
+                let is_inbound: bool = new_x >= 0 && new_x < 8 && new_y >= 0 && new_y < 8;
+                let new_x: usize = new_x as usize;
+                let new_y: usize = new_y as usize;
+                if is_inbound && self.board[new_x][new_y].is_none() {
+                    temp_destinations.insert((new_x, new_y));
+                } else if is_inbound
+                    && self.board[new_x][new_y].unwrap().color == self.current_player
+                    && !has_met_same_color_piece
+                {
+                    has_met_same_color_piece = true;
+                    temp_current_positions.insert((new_x, new_y));
+                } else if is_inbound
+                    && self.board[new_x][new_y].unwrap().color == self.current_player
+                    && has_met_same_color_piece
+                {
+                    break;
+                } else if is_inbound
+                    && self.board[new_x][new_y].unwrap().color != self.current_player
+                    && has_met_same_color_piece
+                {
+                    is_pinned = true;
+                    current_positions.extend(&mut temp_current_positions.iter());
+                    break;
+                } else if is_inbound
+                    && self.board[new_x][new_y].unwrap().color != self.current_player
+                    && !has_met_same_color_piece
+                {
+                    is_checked = true;
+                    destinations.extend(&mut temp_destinations.iter());
+                    break;
+                }
+            }
+        }
+        return (destinations, is_checked, current_positions, is_pinned);
+    }
+
+    pub fn compute_edge_cases(
+        &self,
+        x: i32,
+        y: i32,
+    ) -> (HashSet<(usize, usize)>, bool, HashSet<(usize, usize)>, bool) {
+        todo!()
+    }
+
+    pub fn compute_legal_moves(&mut self) {
+        let king_position: (usize, usize) = if self.current_player == White {
+            self.white_king_position
+        } else {
+            self.black_king_position
+        };
+        let _ = &mut self.compute_possible_moves();
+        let (destinations, is_checked, current_positions, is_pinned): (
+            HashSet<(usize, usize)>,
+            bool,
+            HashSet<(usize, usize)>,
+            bool,
+        ) = self.compute_edge_cases(
+            king_position.0.try_into().unwrap(),
+            king_position.1.try_into().unwrap(),
+        );
+        let mut legal_moves: HashSet<PieceMove> = HashSet::new();
+        if is_checked {
+            for destination in destinations {
+                legal_moves.extend(
+                    (&self.possible_moves)
+                        .into_iter()
+                        .filter(|piece_move| piece_move.destination == destination),
+                );
+            }
+        }
+        if is_pinned && is_checked {
+            for current_position in current_positions {
+                legal_moves.retain(|piece_move| piece_move.current_position != current_position);
+            }
+        } else if is_pinned && !is_checked {
+            for current_position in current_positions {
+                legal_moves.extend(
+                    (&self.possible_moves)
+                        .into_iter()
+                        .filter(|piece_move| piece_move.current_position != current_position),
+                );
+            }
+        }
+    }
+
     pub fn display_possible_moves(&self) {
         let mut output: String = String::new();
-        for piece_move in self.possible_white_moves.iter() {
+        for piece_move in self.possible_moves.iter() {
             output.push('(');
             output.push_str(&piece_move.destination.0.to_string());
             output.push(',');

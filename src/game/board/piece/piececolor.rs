@@ -1,6 +1,6 @@
 use core::fmt;
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub enum PieceColor {
     White,
     Black,
