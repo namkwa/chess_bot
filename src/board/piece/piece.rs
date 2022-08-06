@@ -1,4 +1,4 @@
-use crate::game::board::Board;
+use crate::board::Board;
 
 use super::{
     piececolor::PieceColor, piececolor::PieceColor::*, piecemove::PieceMove, piecename::PieceName,

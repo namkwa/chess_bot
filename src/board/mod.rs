@@ -343,3 +343,23 @@ impl fmt::Display for Board {
         write!(f, "{}", output)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+
+    use super::Board;
+
+    #[test]
+    fn computes_correct_moves_bishop() {
+        let mut board: Board = Board::new();
+        board.execute_move((1, 3), (2, 3));
+        board.execute_move((6, 4), (5, 4));
+        board.execute_move((7, 5), (3, 1));
+        let result = board.compute_edge_cases_bishop(
+            board.white_king_position.0.try_into().unwrap(),
+            board.white_king_position.1.try_into().unwrap(),
+        );
+        assert!((HashSet::from([(2, 2), (1, 3)]), true, HashSet::new(), false) == result);
+    }
+}

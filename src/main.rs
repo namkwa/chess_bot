@@ -1,5 +1,7 @@
-use game::board::Board;
-mod game;
+use std::{error, fmt::Error};
+
+use board::Board;
+mod board;
 fn main() {
     let mut board: Board = Board::new();
     board.execute_move((1, 3), (2, 3));
