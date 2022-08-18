@@ -71,6 +71,31 @@ impl Board {
             black_king_position: (7, 4),
         }
     }
+
+    pub fn from(fen: String) -> Self {
+        let mut board: Board = Board::new();
+        let mut fen_splitted = fen.split_whitespace();
+        let positions = fen_splitted.next().unwrap();
+        let current_player = fen_splitted.next().unwrap();
+        let splitted_positions = positions.split("/");
+        for (row, row_positions) in splitted_positions.into_iter().enumerate() {
+            let mut col_index: usize = 0;
+            for piece in row_positions.chars() {
+                if piece.is_numeric() {
+                    col_index += piece as usize;
+                    continue;
+                }
+                let piece_color = if piece.is_uppercase() { White } else { Black };
+                match piece.to_ascii_lowercase() {
+                    'k' => board.board[row][col_index] = Some(Piece::new(King, piece_color, false)),
+                    _ => panic!(),
+                }
+            }
+        }
+
+        return board;
+    }
+
     pub fn compute_possible_moves(&mut self) {
         let mut next_possible_moves: HashSet<PieceMove> = HashSet::new();
         for (i, line) in self.board.into_iter().enumerate() {
@@ -102,8 +127,6 @@ impl Board {
             piece: self.board[current_position.0][current_position.1].unwrap(),
             destination: destination,
             current_position: current_position,
-            takes: false,
-            puts_in_check: false,
         };
         if move_to_execute.piece.name == King {
             match move_to_execute.piece.color {

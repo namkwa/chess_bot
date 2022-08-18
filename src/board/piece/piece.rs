@@ -158,8 +158,6 @@ impl Piece {
                     piece: self,
                     destination: (new_x, new_y),
                     current_position: (old_x, old_y),
-                    takes: false,
-                    puts_in_check: false,
                 }),
                 false,
             );
@@ -169,8 +167,6 @@ impl Piece {
                     piece: self,
                     destination: (new_x, new_y),
                     current_position: (old_x, old_y),
-                    takes: true,
-                    puts_in_check: false,
                 }),
                 true,
             );
