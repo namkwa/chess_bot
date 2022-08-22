@@ -9,16 +9,11 @@ use std::collections::HashSet;
 pub struct Piece {
     pub name: PieceName,
     pub color: PieceColor,
-    pub has_moved: bool,
 }
 
 impl Piece {
-    pub fn new(name: PieceName, color: PieceColor, has_moved: bool) -> Self {
-        Piece {
-            name,
-            color,
-            has_moved,
-        }
+    pub fn new(name: PieceName, color: PieceColor) -> Self {
+        Piece { name, color }
     }
 
     pub fn rook(self, board: [[Option<Piece>; 8]; 8], x: i32, y: i32) -> HashSet<PieceMove> {

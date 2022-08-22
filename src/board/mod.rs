@@ -6,6 +6,7 @@ use piece::piececolor::PieceColor::*;
 use piece::piecemove::PieceMove;
 use piece::piecename::PieceName::*;
 
+use self::piece::castlingrights::CastlingRights;
 use self::piece::piececolor::PieceColor;
 pub mod piece;
 pub struct Board {
@@ -14,6 +15,7 @@ pub struct Board {
     pub possible_moves: HashSet<PieceMove>,
     pub white_king_position: (usize, usize),
     pub black_king_position: (usize, usize),
+    pub castling_rights: CastlingRights,
 }
 
 impl Board {
@@ -21,46 +23,46 @@ impl Board {
         let mut board: [[Option<Piece>; 8]; 8] = [[None; 8]; 8];
 
         board[1] = [
-            Some(Piece::new(Pawn, White, false)),
-            Some(Piece::new(Pawn, White, false)),
-            Some(Piece::new(Pawn, White, false)),
-            Some(Piece::new(Pawn, White, false)),
-            Some(Piece::new(Pawn, White, false)),
-            Some(Piece::new(Pawn, White, false)),
-            Some(Piece::new(Pawn, White, false)),
-            Some(Piece::new(Pawn, White, false)),
+            Some(Piece::new(Pawn, White)),
+            Some(Piece::new(Pawn, White)),
+            Some(Piece::new(Pawn, White)),
+            Some(Piece::new(Pawn, White)),
+            Some(Piece::new(Pawn, White)),
+            Some(Piece::new(Pawn, White)),
+            Some(Piece::new(Pawn, White)),
+            Some(Piece::new(Pawn, White)),
         ];
 
         board[6] = [
-            Some(Piece::new(Pawn, Black, false)),
-            Some(Piece::new(Pawn, Black, false)),
-            Some(Piece::new(Pawn, Black, false)),
-            Some(Piece::new(Pawn, Black, false)),
-            Some(Piece::new(Pawn, Black, false)),
-            Some(Piece::new(Pawn, Black, false)),
-            Some(Piece::new(Pawn, Black, false)),
-            Some(Piece::new(Pawn, Black, false)),
+            Some(Piece::new(Pawn, Black)),
+            Some(Piece::new(Pawn, Black)),
+            Some(Piece::new(Pawn, Black)),
+            Some(Piece::new(Pawn, Black)),
+            Some(Piece::new(Pawn, Black)),
+            Some(Piece::new(Pawn, Black)),
+            Some(Piece::new(Pawn, Black)),
+            Some(Piece::new(Pawn, Black)),
         ];
 
         board[0] = [
-            Some(Piece::new(Rook, White, false)),
-            Some(Piece::new(Knight, White, false)),
-            Some(Piece::new(Bishop, White, false)),
-            Some(Piece::new(Queen, White, false)),
-            Some(Piece::new(King, White, false)),
-            Some(Piece::new(Bishop, White, false)),
-            Some(Piece::new(Knight, White, false)),
-            Some(Piece::new(Rook, White, false)),
+            Some(Piece::new(Rook, White)),
+            Some(Piece::new(Knight, White)),
+            Some(Piece::new(Bishop, White)),
+            Some(Piece::new(Queen, White)),
+            Some(Piece::new(King, White)),
+            Some(Piece::new(Bishop, White)),
+            Some(Piece::new(Knight, White)),
+            Some(Piece::new(Rook, White)),
         ];
         board[7] = [
-            Some(Piece::new(Rook, Black, false)),
-            Some(Piece::new(Knight, Black, false)),
-            Some(Piece::new(Bishop, Black, false)),
-            Some(Piece::new(Queen, Black, false)),
-            Some(Piece::new(King, Black, false)),
-            Some(Piece::new(Bishop, Black, false)),
-            Some(Piece::new(Knight, Black, false)),
-            Some(Piece::new(Rook, Black, false)),
+            Some(Piece::new(Rook, Black)),
+            Some(Piece::new(Knight, Black)),
+            Some(Piece::new(Bishop, Black)),
+            Some(Piece::new(Queen, Black)),
+            Some(Piece::new(King, Black)),
+            Some(Piece::new(Bishop, Black)),
+            Some(Piece::new(Knight, Black)),
+            Some(Piece::new(Rook, Black)),
         ];
         let possible_moves: HashSet<PieceMove> = HashSet::new();
         Board {
@@ -69,6 +71,7 @@ impl Board {
             possible_moves,
             white_king_position: (0, 4),
             black_king_position: (7, 4),
+            castling_rights: CastlingRights::new(),
         }
     }
 
@@ -87,7 +90,12 @@ impl Board {
                 }
                 let piece_color = if piece.is_uppercase() { White } else { Black };
                 match piece.to_ascii_lowercase() {
-                    'k' => board.board[row][col_index] = Some(Piece::new(King, piece_color, false)),
+                    'k' => board.board[row][col_index] = Some(Piece::new(King, piece_color)),
+                    'q' => board.board[row][col_index] = Some(Piece::new(Queen, piece_color)),
+                    'r' => board.board[row][col_index] = Some(Piece::new(Rook, piece_color)),
+                    'b' => board.board[row][col_index] = Some(Piece::new(Bishop, piece_color)),
+                    'n' => board.board[row][col_index] = Some(Piece::new(Knight, piece_color)),
+                    'p' => board.board[row][col_index] = Some(Piece::new(Pawn, piece_color)),
                     _ => panic!(),
                 }
             }
@@ -129,12 +137,15 @@ impl Board {
             current_position: current_position,
         };
         if move_to_execute.piece.name == King {
+            _ = &mut self
+                .castling_rights
+                .remove_castling_rights(move_to_execute.piece.color, piece::side::Side::Both);
             match move_to_execute.piece.color {
                 White => self.white_king_position = move_to_execute.destination,
                 Black => self.black_king_position = move_to_execute.destination,
             }
+        } else if move_to_execute.piece.name == Rook {
         }
-        move_to_execute.piece.has_moved = true;
         self.board[move_to_execute.destination.0][move_to_execute.destination.1] =
             Some(move_to_execute.piece);
         self.board[move_to_execute.current_position.0][move_to_execute.current_position.1] = None;
