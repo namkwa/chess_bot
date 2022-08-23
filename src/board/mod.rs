@@ -8,6 +8,7 @@ use piece::piecename::PieceName::*;
 
 use self::piece::castlingrights::CastlingRights;
 use self::piece::piececolor::PieceColor;
+use self::piece::side::Side;
 pub mod piece;
 pub struct Board {
     pub board: [[Option<Piece>; 8]; 8],
@@ -145,6 +146,21 @@ impl Board {
                 Black => self.black_king_position = move_to_execute.destination,
             }
         } else if move_to_execute.piece.name == Rook {
+            match current_position {
+                (0, 0) => self
+                    .castling_rights
+                    .remove_castling_rights(White, Side::Queen),
+                (0, 7) => self
+                    .castling_rights
+                    .remove_castling_rights(White, Side::King),
+                (7, 0) => self
+                    .castling_rights
+                    .remove_castling_rights(Black, Side::Queen),
+                (7, 7) => self
+                    .castling_rights
+                    .remove_castling_rights(Black, Side::King),
+                _ => (),
+            }
         }
         self.board[move_to_execute.destination.0][move_to_execute.destination.1] =
             Some(move_to_execute.piece);
