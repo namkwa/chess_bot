@@ -6,7 +6,7 @@ use piece::piececolor::PieceColor::*;
 use piece::piecemove::PieceMove;
 use piece::piecename::PieceName::*;
 
-use self::piece::castlingrights::CastlingRights;
+use self::piece::castlingrights::{self, CastlingRights};
 use self::piece::piececolor::PieceColor;
 use self::piece::side::Side;
 pub mod piece;
@@ -17,6 +17,7 @@ pub struct Board {
     pub white_king_position: (usize, usize),
     pub black_king_position: (usize, usize),
     pub castling_rights: CastlingRights,
+    pub en_passant: Option<(usize, usize)>,
 }
 
 impl Board {
@@ -73,36 +74,76 @@ impl Board {
             white_king_position: (0, 4),
             black_king_position: (7, 4),
             castling_rights: CastlingRights::new(),
+            en_passant: None,
         }
     }
 
     pub fn from(fen: String) -> Self {
-        let mut board: Board = Board::new();
+        let mut board: [[Option<Piece>; 8]; 8] = [[None; 8]; 8];
         let mut fen_splitted = fen.split_whitespace();
         let positions = fen_splitted.next().unwrap();
-        let current_player = fen_splitted.next().unwrap();
         let splitted_positions = positions.split("/");
+        let mut white_king_positions: (usize, usize) = (0, 4);
+        let mut black_king_positions: (usize, usize) = (7, 4);
         for (row, row_positions) in splitted_positions.into_iter().enumerate() {
+            let row_index: usize = 7 - row;
             let mut col_index: usize = 0;
             for piece in row_positions.chars() {
                 if piece.is_numeric() {
-                    col_index += piece as usize;
+                    col_index += piece.to_digit(10).unwrap() as usize;
                     continue;
                 }
                 let piece_color = if piece.is_uppercase() { White } else { Black };
                 match piece.to_ascii_lowercase() {
-                    'k' => board.board[row][col_index] = Some(Piece::new(King, piece_color)),
-                    'q' => board.board[row][col_index] = Some(Piece::new(Queen, piece_color)),
-                    'r' => board.board[row][col_index] = Some(Piece::new(Rook, piece_color)),
-                    'b' => board.board[row][col_index] = Some(Piece::new(Bishop, piece_color)),
-                    'n' => board.board[row][col_index] = Some(Piece::new(Knight, piece_color)),
-                    'p' => board.board[row][col_index] = Some(Piece::new(Pawn, piece_color)),
+                    'k' => {
+                        board[row_index][col_index] = Some(Piece::new(King, piece_color));
+                        match piece_color {
+                            White => white_king_positions = (row_index, col_index),
+                            Black => black_king_positions = (row_index, col_index),
+                        }
+                    }
+
+                    'q' => board[row_index][col_index] = Some(Piece::new(Queen, piece_color)),
+                    'r' => board[row_index][col_index] = Some(Piece::new(Rook, piece_color)),
+                    'b' => board[row_index][col_index] = Some(Piece::new(Bishop, piece_color)),
+                    'n' => board[row_index][col_index] = Some(Piece::new(Knight, piece_color)),
+                    'p' => board[row_index][col_index] = Some(Piece::new(Pawn, piece_color)),
                     _ => panic!(),
                 }
+                col_index += 1;
             }
         }
+        let current_player = if fen_splitted.next() == Some("w") {
+            White
+        } else {
+            Black
+        };
+        let mut castling_rights = CastlingRights::new();
+        let castling_rights_splitted = fen_splitted.next().unwrap();
+        println!("{}", castling_rights_splitted);
+        if !castling_rights_splitted.contains("K") {
+            castling_rights.remove_castling_rights(White, Side::King)
+        }
+        if !castling_rights_splitted.contains("k") {
+            castling_rights.remove_castling_rights(Black, Side::King)
+        }
+        if !castling_rights_splitted.contains("Q") {
+            castling_rights.remove_castling_rights(White, Side::Queen)
+        }
+        if !castling_rights_splitted.contains("q") {
+            castling_rights.remove_castling_rights(Black, Side::Queen)
+        }
 
-        return board;
+        let possible_moves: HashSet<PieceMove> = HashSet::new();
+        Board {
+            board,
+            current_player: current_player,
+            possible_moves,
+            white_king_position: white_king_positions,
+            black_king_position: black_king_positions,
+            castling_rights: castling_rights,
+            en_passant: None,
+        }
     }
 
     pub fn compute_possible_moves(&mut self) {
@@ -140,7 +181,7 @@ impl Board {
         if move_to_execute.piece.name == King {
             _ = &mut self
                 .castling_rights
-                .remove_castling_rights(move_to_execute.piece.color, piece::side::Side::Both);
+                .remove_castling_rights(move_to_execute.piece.color, Side::Both);
             match move_to_execute.piece.color {
                 White => self.white_king_position = move_to_execute.destination,
                 Black => self.black_king_position = move_to_execute.destination,
@@ -200,14 +241,14 @@ impl Board {
                     break;
                 } else if square.unwrap().color != self.current_player
                     && has_met_same_color_piece
-                    && (square.unwrap().name == Bishop || square.unwrap().name == Queen)
+                    && (square.unwrap().name == Rook || square.unwrap().name == Queen)
                 {
                     is_pinned = true;
                     current_positions.extend(&mut temp_current_positions.iter());
                     break;
                 } else if self.board[new_x][new_y].unwrap().color != self.current_player
                     && !has_met_same_color_piece
-                    && (square.unwrap().name == Bishop || square.unwrap().name == Queen)
+                    && (square.unwrap().name == Rook || square.unwrap().name == Queen)
                 {
                     is_checked = true;
                     destinations.extend(&mut temp_destinations.iter());
@@ -265,29 +306,32 @@ impl Board {
                 let is_inbound: bool = new_x >= 0 && new_x < 8 && new_y >= 0 && new_y < 8;
                 let new_x: usize = new_x as usize;
                 let new_y: usize = new_y as usize;
+                let square: Option<Piece> = self.board[new_x][new_y];
                 if is_inbound && self.board[new_x][new_y].is_none() {
                     temp_destinations.insert((new_x, new_y));
                 } else if is_inbound
-                    && self.board[new_x][new_y].unwrap().color == self.current_player
+                    && square.unwrap().color == self.current_player
                     && !has_met_same_color_piece
                 {
                     has_met_same_color_piece = true;
                     temp_current_positions.insert((new_x, new_y));
                 } else if is_inbound
-                    && self.board[new_x][new_y].unwrap().color == self.current_player
+                    && square.unwrap().color == self.current_player
                     && has_met_same_color_piece
                 {
                     break;
                 } else if is_inbound
-                    && self.board[new_x][new_y].unwrap().color != self.current_player
+                    && square.unwrap().color != self.current_player
                     && has_met_same_color_piece
+                    && (square.unwrap().name == Bishop || square.unwrap().name == Queen)
                 {
                     is_pinned = true;
                     current_positions.extend(&mut temp_current_positions.iter());
                     break;
                 } else if is_inbound
-                    && self.board[new_x][new_y].unwrap().color != self.current_player
+                    && square.unwrap().color != self.current_player
                     && !has_met_same_color_piece
+                    && (square.unwrap().name == Bishop || square.unwrap().name == Queen)
                 {
                     is_checked = true;
                     destinations.extend(&mut temp_destinations.iter());
@@ -303,7 +347,9 @@ impl Board {
         x: i32,
         y: i32,
     ) -> (HashSet<(usize, usize)>, bool, HashSet<(usize, usize)>, bool) {
-        todo!()
+        let rook_edge_cases = self.compute_edge_cases_rook(x, y);
+        let knight_edge_cases = self.compute_edge_cases_knight(x, y);
+        let bishop_edge_cases = self.compute_edge_cases_bishop(x, y);
     }
 
     pub fn compute_legal_moves(&mut self) {

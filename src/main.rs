@@ -3,14 +3,12 @@ use std::{error, fmt::Error};
 use board::Board;
 mod board;
 fn main() {
-    let mut board: Board = Board::new();
-    board.execute_move((1, 3), (2, 3));
-    board.execute_move((6, 4), (5, 4));
-    board.execute_move((7, 5), (3, 1));
-    board.execute_move((1, 2), (2, 2));
+    let mut board: Board =
+        Board::from("rnbq1bnr/ppppkppp/8/4p3/4P3/8/PPPPKPPP/RNBQ1BNR w - - 2 3".to_string());
+    println!(
+        "{} {:?}",
+        board.current_player, board.castling_rights.can_black_castle_king_side
+    );
     board.compute_possible_moves();
     board.display_possible_moves();
-    let result = board.compute_edge_cases(0, 4);
-    println!("{}", board);
-    println!("{} {:?}", result.3, result.2);
 }
