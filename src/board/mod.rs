@@ -241,14 +241,15 @@ impl Board {
                     && (square.unwrap().name == Rook || square.unwrap().name == Queen)
                 {
                     is_pinned = true;
-                    current_positions.extend(&mut temp_current_positions.iter());
+                    current_positions.extend(temp_current_positions.iter());
                     break;
                 } else if self.board[new_x][new_y].unwrap().color != self.current_player
                     && !has_met_same_color_piece
                     && (square.unwrap().name == Rook || square.unwrap().name == Queen)
                 {
+                    temp_destinations.insert((new_x, new_y));
                     is_checked = true;
-                    destinations.extend(&mut temp_destinations.iter());
+                    destinations.extend(temp_destinations.iter());
                     break;
                 }
             }
@@ -256,8 +257,8 @@ impl Board {
         ChecksAndPins {
             destinations,
             is_checked,
-            current_positions: Some(current_positions),
-            is_pinned: Some(is_pinned),
+            current_positions: current_positions,
+            is_pinned: is_pinned,
         }
     }
 
@@ -291,8 +292,8 @@ impl Board {
         ChecksAndPins {
             destinations,
             is_checked,
-            current_positions: None,
-            is_pinned: None,
+            current_positions: HashSet::new(),
+            is_pinned: false,
         }
     }
 
@@ -332,15 +333,16 @@ impl Board {
                     && (square.unwrap().name == Bishop || square.unwrap().name == Queen)
                 {
                     is_pinned = true;
-                    current_positions.extend(&mut temp_current_positions.iter());
+                    current_positions.extend(temp_current_positions.iter());
                     break;
                 } else if is_inbound
                     && square.unwrap().color != self.current_player
                     && !has_met_same_color_piece
                     && (square.unwrap().name == Bishop || square.unwrap().name == Queen)
                 {
+                    temp_destinations.insert((new_x, new_y));
                     is_checked = true;
-                    destinations.extend(&mut temp_destinations.iter());
+                    destinations.extend(temp_destinations.iter());
                     break;
                 }
             }
@@ -348,8 +350,8 @@ impl Board {
         ChecksAndPins {
             destinations,
             is_checked,
-            current_positions: Some(current_positions),
-            is_pinned: Some(is_pinned),
+            current_positions: current_positions,
+            is_pinned: is_pinned,
         }
     }
 
@@ -369,18 +371,18 @@ impl Board {
             || checks_and_pins_by_bishop.is_checked;
 
         let mut current_positions: HashSet<(usize, usize)> = HashSet::new();
-        current_positions.extend(checks_and_pins_by_rook.current_positions.unwrap().iter());
-        current_positions.extend(checks_and_pins_by_bishop.current_positions.unwrap().iter());
+        current_positions.extend(checks_and_pins_by_rook.current_positions.iter());
+        current_positions.extend(checks_and_pins_by_bishop.current_positions.iter());
 
-        let is_pinned: bool = checks_and_pins_by_rook.is_pinned.unwrap()
-            || checks_by_knight.is_pinned.unwrap()
-            || checks_and_pins_by_bishop.is_pinned.unwrap();
+        let is_pinned: bool = checks_and_pins_by_rook.is_pinned
+            || checks_by_knight.is_pinned
+            || checks_and_pins_by_bishop.is_pinned;
 
         ChecksAndPins {
             destinations,
             is_checked,
-            current_positions: Some(current_positions),
-            is_pinned: Some(is_pinned),
+            current_positions: current_positions,
+            is_pinned: is_pinned,
         }
     }
 
@@ -390,7 +392,7 @@ impl Board {
         } else {
             self.black_king_position
         };
-        let _ = &mut self.compute_possible_moves();
+        &mut self.compute_possible_moves();
         let checks_and_pins: ChecksAndPins = self.look_for_checks_and_pins(
             king_position.0.try_into().unwrap(),
             king_position.1.try_into().unwrap(),
@@ -405,12 +407,12 @@ impl Board {
                 );
             }
         }
-        if checks_and_pins.is_pinned.unwrap() && checks_and_pins.is_checked {
-            for current_position in checks_and_pins.current_positions.unwrap() {
+        if checks_and_pins.is_pinned && checks_and_pins.is_checked {
+            for current_position in checks_and_pins.current_positions {
                 legal_moves.retain(|piece_move| piece_move.current_position != current_position);
             }
-        } else if checks_and_pins.is_pinned.unwrap() && !checks_and_pins.is_checked {
-            for current_position in checks_and_pins.current_positions.unwrap() {
+        } else if checks_and_pins.is_pinned && !checks_and_pins.is_checked {
+            for current_position in checks_and_pins.current_positions {
                 legal_moves.extend(
                     (&self.possible_moves)
                         .into_iter()
@@ -489,8 +491,8 @@ mod tests {
             ChecksAndPins {
                 destinations: HashSet::from([(2, 2), (1, 3)]),
                 is_checked: true,
-                current_positions: Some(HashSet::new()),
-                is_pinned: Some(false)
+                current_positions: HashSet::new(),
+                is_pinned: false
             } == result
         );
     }
