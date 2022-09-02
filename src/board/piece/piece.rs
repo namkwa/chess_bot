@@ -111,11 +111,11 @@ impl Piece {
                 self.compute_move(new_x, new_y, x as usize, y as usize, board.board);
             if !piece_move.is_none()
                 && !board
-                    .compute_edge_cases(
+                    .look_for_checks_and_pins(
                         king_position.0.try_into().unwrap(),
                         king_position.1.try_into().unwrap(),
                     )
-                    .1
+                    .is_checked
             {
                 king_moves.insert(piece_move.unwrap());
             }

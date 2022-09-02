@@ -1,6 +1,7 @@
 use core::fmt;
 use std::collections::HashSet;
 
+use piece::checksandpins::ChecksAndPins;
 use piece::piece::Piece;
 use piece::piececolor::PieceColor::*;
 use piece::piecemove::PieceMove;
@@ -208,11 +209,7 @@ impl Board {
         self.board[move_to_execute.current_position.0][move_to_execute.current_position.1] = None;
     }
 
-    pub fn compute_edge_cases_rook(
-        &self,
-        x: i32,
-        y: i32,
-    ) -> (HashSet<(usize, usize)>, bool, HashSet<(usize, usize)>, bool) {
+    pub fn look_for_checks_and_pins_by_rook(&self, x: i32, y: i32) -> ChecksAndPins {
         let mut destinations: HashSet<(usize, usize)> = HashSet::new();
         let mut current_positions: HashSet<(usize, usize)> = HashSet::new();
         let mut is_checked: bool = false;
@@ -256,10 +253,15 @@ impl Board {
                 }
             }
         }
-        return (destinations, is_checked, current_positions, is_pinned);
+        ChecksAndPins {
+            destinations,
+            is_checked,
+            current_positions: Some(current_positions),
+            is_pinned: Some(is_pinned),
+        }
     }
 
-    pub fn compute_edge_cases_knight(&self, x: i32, y: i32) -> (HashSet<(usize, usize)>, bool) {
+    pub fn look_for_checks_by_knight(&self, x: i32, y: i32) -> ChecksAndPins {
         let mut destinations: HashSet<(usize, usize)> = HashSet::new();
         let mut is_checked: bool = false;
         let coord_moves: [(i32, i32); 8] = [
@@ -278,19 +280,23 @@ impl Board {
             let is_inbound: bool = new_x >= 0 && new_x < 8 && new_y >= 0 && new_y < 8;
             let new_x: usize = new_x as usize;
             let new_y: usize = new_y as usize;
-            if is_inbound && self.current_player != self.board[new_x][new_y].unwrap().color {
+            if is_inbound
+                && self.board[new_x][new_y] != None
+                && self.current_player != self.board[new_x][new_y].unwrap().color
+            {
                 is_checked = true;
                 destinations.insert((new_x, new_y));
             }
         }
-        return (destinations, is_checked);
+        ChecksAndPins {
+            destinations,
+            is_checked,
+            current_positions: None,
+            is_pinned: None,
+        }
     }
 
-    pub fn compute_edge_cases_bishop(
-        &self,
-        x: i32,
-        y: i32,
-    ) -> (HashSet<(usize, usize)>, bool, HashSet<(usize, usize)>, bool) {
+    pub fn look_for_checks_and_pins_by_bishop(&self, x: i32, y: i32) -> ChecksAndPins {
         let mut destinations: HashSet<(usize, usize)> = HashSet::new();
         let mut current_positions: HashSet<(usize, usize)> = HashSet::new();
         let mut is_checked: bool = false;
@@ -339,17 +345,43 @@ impl Board {
                 }
             }
         }
-        return (destinations, is_checked, current_positions, is_pinned);
+        ChecksAndPins {
+            destinations,
+            is_checked,
+            current_positions: Some(current_positions),
+            is_pinned: Some(is_pinned),
+        }
     }
 
-    pub fn compute_edge_cases(
-        &self,
-        x: i32,
-        y: i32,
-    ) -> (HashSet<(usize, usize)>, bool, HashSet<(usize, usize)>, bool) {
-        let rook_edge_cases = self.compute_edge_cases_rook(x, y);
-        let knight_edge_cases = self.compute_edge_cases_knight(x, y);
-        let bishop_edge_cases = self.compute_edge_cases_bishop(x, y);
+    pub fn look_for_checks_and_pins(&self, x: i32, y: i32) -> ChecksAndPins {
+        let checks_and_pins_by_rook: ChecksAndPins = self.look_for_checks_and_pins_by_rook(x, y);
+        let checks_by_knight: ChecksAndPins = self.look_for_checks_by_knight(x, y);
+        let checks_and_pins_by_bishop: ChecksAndPins =
+            self.look_for_checks_and_pins_by_bishop(x, y);
+
+        let mut destinations: HashSet<(usize, usize)> = HashSet::new();
+        destinations.extend(checks_and_pins_by_rook.destinations.iter());
+        destinations.extend(checks_and_pins_by_bishop.destinations.iter());
+        destinations.extend(checks_by_knight.destinations.iter());
+
+        let is_checked: bool = checks_and_pins_by_rook.is_checked
+            || checks_by_knight.is_checked
+            || checks_and_pins_by_bishop.is_checked;
+
+        let mut current_positions: HashSet<(usize, usize)> = HashSet::new();
+        current_positions.extend(checks_and_pins_by_rook.current_positions.unwrap().iter());
+        current_positions.extend(checks_and_pins_by_bishop.current_positions.unwrap().iter());
+
+        let is_pinned: bool = checks_and_pins_by_rook.is_pinned.unwrap()
+            || checks_by_knight.is_pinned.unwrap()
+            || checks_and_pins_by_bishop.is_pinned.unwrap();
+
+        ChecksAndPins {
+            destinations,
+            is_checked,
+            current_positions: Some(current_positions),
+            is_pinned: Some(is_pinned),
+        }
     }
 
     pub fn compute_legal_moves(&mut self) {
@@ -359,18 +391,13 @@ impl Board {
             self.black_king_position
         };
         let _ = &mut self.compute_possible_moves();
-        let (destinations, is_checked, current_positions, is_pinned): (
-            HashSet<(usize, usize)>,
-            bool,
-            HashSet<(usize, usize)>,
-            bool,
-        ) = self.compute_edge_cases(
+        let checks_and_pins: ChecksAndPins = self.look_for_checks_and_pins(
             king_position.0.try_into().unwrap(),
             king_position.1.try_into().unwrap(),
         );
         let mut legal_moves: HashSet<PieceMove> = HashSet::new();
-        if is_checked {
-            for destination in destinations {
+        if checks_and_pins.is_checked {
+            for destination in checks_and_pins.destinations {
                 legal_moves.extend(
                     (&self.possible_moves)
                         .into_iter()
@@ -378,12 +405,12 @@ impl Board {
                 );
             }
         }
-        if is_pinned && is_checked {
-            for current_position in current_positions {
+        if checks_and_pins.is_pinned.unwrap() && checks_and_pins.is_checked {
+            for current_position in checks_and_pins.current_positions.unwrap() {
                 legal_moves.retain(|piece_move| piece_move.current_position != current_position);
             }
-        } else if is_pinned && !is_checked {
-            for current_position in current_positions {
+        } else if checks_and_pins.is_pinned.unwrap() && !checks_and_pins.is_checked {
+            for current_position in checks_and_pins.current_positions.unwrap() {
                 legal_moves.extend(
                     (&self.possible_moves)
                         .into_iter()
@@ -444,6 +471,8 @@ impl fmt::Display for Board {
 mod tests {
     use std::collections::HashSet;
 
+    use crate::board::piece::checksandpins::ChecksAndPins;
+
     use super::Board;
 
     #[test]
@@ -452,10 +481,17 @@ mod tests {
         board.execute_move((1, 3), (2, 3));
         board.execute_move((6, 4), (5, 4));
         board.execute_move((7, 5), (3, 1));
-        let result = board.compute_edge_cases_bishop(
+        let result = board.look_for_checks_and_pins_by_bishop(
             board.white_king_position.0.try_into().unwrap(),
             board.white_king_position.1.try_into().unwrap(),
         );
-        assert!((HashSet::from([(2, 2), (1, 3)]), true, HashSet::new(), false) == result);
+        assert!(
+            ChecksAndPins {
+                destinations: HashSet::from([(2, 2), (1, 3)]),
+                is_checked: true,
+                current_positions: Some(HashSet::new()),
+                is_pinned: Some(false)
+            } == result
+        );
     }
 }
