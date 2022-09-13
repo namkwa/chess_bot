@@ -1,8 +1,6 @@
 use crate::board::Board;
 
-use super::{
-    piececolor::PieceColor, piececolor::PieceColor::*, piecemove::PieceMove, piecename::PieceName,
-};
+use super::{piececolor::PieceColor, piecemove::PieceMove, piecename::PieceName};
 use std::collections::HashSet;
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
@@ -90,30 +88,25 @@ impl Piece {
     pub fn king(self, board: &mut Board, x: i32, y: i32) -> HashSet<PieceMove> {
         let mut king_moves: HashSet<PieceMove> = HashSet::new();
         let coord_moves: [(i32, i32); 8] = [
-            (-1, 0),
-            (0, 1),
-            (0, -1),
-            (1, 0),
-            (-1, -1),
-            (-1, 1),
             (1, -1),
             (1, 1),
+            (1, 0),
+            (0, 1),
+            (-1, 0),
+            (0, -1),
+            (-1, -1),
+            (-1, 1),
         ];
         for (i, j) in coord_moves {
             let new_x: i32 = x + i;
             let new_y: i32 = y + j;
-            let king_position: (usize, usize) = if self.color == White {
-                board.white_king_position
-            } else {
-                board.black_king_position
-            };
             let (piece_move, _): (Option<PieceMove>, bool) =
                 self.compute_move(new_x, new_y, x as usize, y as usize, board.board);
             if !piece_move.is_none()
                 && !board
                     .look_for_checks_and_pins(
-                        king_position.0.try_into().unwrap(),
-                        king_position.1.try_into().unwrap(),
+                        piece_move.unwrap().destination.0.try_into().unwrap(),
+                        piece_move.unwrap().destination.1.try_into().unwrap(),
                     )
                     .is_checked
             {

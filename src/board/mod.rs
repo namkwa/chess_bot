@@ -6,8 +6,9 @@ use piece::piece::Piece;
 use piece::piececolor::PieceColor::*;
 use piece::piecemove::PieceMove;
 use piece::piecename::PieceName::*;
+use piece::side::Side::Both;
 
-use self::piece::castlingrights::{self, CastlingRights};
+use self::piece::castlingrights::CastlingRights;
 use self::piece::piececolor::PieceColor;
 use self::piece::side::Side;
 pub mod piece;
@@ -147,32 +148,6 @@ impl Board {
         }
     }
 
-    pub fn compute_possible_moves(&mut self) {
-        let mut next_possible_moves: HashSet<PieceMove> = HashSet::new();
-        for (i, line) in self.board.into_iter().enumerate() {
-            for (j, piece) in line.into_iter().enumerate() {
-                if piece.is_none() || piece.unwrap().color != self.current_player {
-                    continue;
-                }
-                match piece.unwrap().name {
-                    Rook => next_possible_moves
-                        .extend(&mut piece.unwrap().rook(self.board, i as i32, j as i32).iter()),
-                    Knight => next_possible_moves
-                        .extend(&mut piece.unwrap().knight(self.board, i as i32, j as i32).iter()),
-                    Bishop => next_possible_moves
-                        .extend(&mut piece.unwrap().bishop(self.board, i as i32, j as i32).iter()),
-                    Queen => next_possible_moves
-                        .extend(&mut piece.unwrap().queen(self.board, i as i32, j as i32).iter()),
-                    King => next_possible_moves
-                        .extend(&mut piece.unwrap().king(self, i as i32, j as i32).iter()),
-                    Pawn => next_possible_moves
-                        .extend(&mut piece.unwrap().pawn(self.board, i as i32, j as i32).iter()),
-                }
-            }
-        }
-        self.possible_moves = next_possible_moves;
-    }
-
     pub fn execute_move(&mut self, current_position: (usize, usize), destination: (usize, usize)) {
         let mut move_to_execute: PieceMove = PieceMove {
             piece: self.board[current_position.0][current_position.1].unwrap(),
@@ -182,7 +157,7 @@ impl Board {
         if move_to_execute.piece.name == King {
             _ = &mut self
                 .castling_rights
-                .remove_castling_rights(move_to_execute.piece.color, Side::Both);
+                .remove_castling_rights(move_to_execute.piece.color, Both);
             match move_to_execute.piece.color {
                 White => self.white_king_position = move_to_execute.destination,
                 Black => self.black_king_position = move_to_execute.destination,
@@ -243,13 +218,15 @@ impl Board {
                     is_pinned = true;
                     current_positions.extend(temp_current_positions.iter());
                     break;
-                } else if self.board[new_x][new_y].unwrap().color != self.current_player
+                } else if square.unwrap().color != self.current_player
                     && !has_met_same_color_piece
                     && (square.unwrap().name == Rook || square.unwrap().name == Queen)
                 {
                     temp_destinations.insert((new_x, new_y));
                     is_checked = true;
                     destinations.extend(temp_destinations.iter());
+                    break;
+                } else {
                     break;
                 }
             }
@@ -281,9 +258,14 @@ impl Board {
             let is_inbound: bool = new_x >= 0 && new_x < 8 && new_y >= 0 && new_y < 8;
             let new_x: usize = new_x as usize;
             let new_y: usize = new_y as usize;
+            if !is_inbound {
+                break;
+            }
+            let square: Option<Piece> = self.board[new_x][new_y];
             if is_inbound
-                && self.board[new_x][new_y] != None
-                && self.current_player != self.board[new_x][new_y].unwrap().color
+                && !self.board[new_x][new_y].is_none()
+                && self.current_player != square.unwrap().color
+                && square.unwrap().name == Knight
             {
                 is_checked = true;
                 destinations.insert((new_x, new_y));
@@ -311,32 +293,28 @@ impl Board {
                 let new_x: i32 = distance * i + x;
                 let new_y: i32 = distance * j + y;
                 let is_inbound: bool = new_x >= 0 && new_x < 8 && new_y >= 0 && new_y < 8;
+                if !is_inbound {
+                    break;
+                }
                 let new_x: usize = new_x as usize;
                 let new_y: usize = new_y as usize;
                 let square: Option<Piece> = self.board[new_x][new_y];
                 if is_inbound && self.board[new_x][new_y].is_none() {
                     temp_destinations.insert((new_x, new_y));
-                } else if is_inbound
-                    && square.unwrap().color == self.current_player
-                    && !has_met_same_color_piece
+                } else if square.unwrap().color == self.current_player && !has_met_same_color_piece
                 {
                     has_met_same_color_piece = true;
                     temp_current_positions.insert((new_x, new_y));
-                } else if is_inbound
-                    && square.unwrap().color == self.current_player
-                    && has_met_same_color_piece
-                {
+                } else if square.unwrap().color == self.current_player && has_met_same_color_piece {
                     break;
-                } else if is_inbound
-                    && square.unwrap().color != self.current_player
+                } else if square.unwrap().color != self.current_player
                     && has_met_same_color_piece
                     && (square.unwrap().name == Bishop || square.unwrap().name == Queen)
                 {
                     is_pinned = true;
                     current_positions.extend(temp_current_positions.iter());
                     break;
-                } else if is_inbound
-                    && square.unwrap().color != self.current_player
+                } else if square.unwrap().color != self.current_player
                     && !has_met_same_color_piece
                     && (square.unwrap().name == Bishop || square.unwrap().name == Queen)
                 {
@@ -374,16 +352,41 @@ impl Board {
         current_positions.extend(checks_and_pins_by_rook.current_positions.iter());
         current_positions.extend(checks_and_pins_by_bishop.current_positions.iter());
 
-        let is_pinned: bool = checks_and_pins_by_rook.is_pinned
-            || checks_by_knight.is_pinned
-            || checks_and_pins_by_bishop.is_pinned;
+        let is_pinned: bool =
+            checks_and_pins_by_rook.is_pinned || checks_and_pins_by_bishop.is_pinned;
 
         ChecksAndPins {
             destinations,
             is_checked,
-            current_positions: current_positions,
-            is_pinned: is_pinned,
+            current_positions,
+            is_pinned,
         }
+    }
+
+    pub fn compute_possible_moves(&mut self) {
+        let mut next_possible_moves: HashSet<PieceMove> = HashSet::new();
+        for (i, line) in self.board.into_iter().enumerate() {
+            for (j, piece) in line.into_iter().enumerate() {
+                if piece.is_none() || piece.unwrap().color != self.current_player {
+                    continue;
+                }
+                match piece.unwrap().name {
+                    Rook => next_possible_moves
+                        .extend(&mut piece.unwrap().rook(self.board, i as i32, j as i32).iter()),
+                    Knight => next_possible_moves
+                        .extend(&mut piece.unwrap().knight(self.board, i as i32, j as i32).iter()),
+                    Bishop => next_possible_moves
+                        .extend(&mut piece.unwrap().bishop(self.board, i as i32, j as i32).iter()),
+                    Queen => next_possible_moves
+                        .extend(&mut piece.unwrap().queen(self.board, i as i32, j as i32).iter()),
+                    King => next_possible_moves
+                        .extend(&mut piece.unwrap().king(self, i as i32, j as i32).iter()),
+                    Pawn => next_possible_moves
+                        .extend(&mut piece.unwrap().pawn(self.board, i as i32, j as i32).iter()),
+                }
+            }
+        }
+        self.possible_moves = next_possible_moves;
     }
 
     pub fn compute_legal_moves(&mut self) {
@@ -392,7 +395,7 @@ impl Board {
         } else {
             self.black_king_position
         };
-        &mut self.compute_possible_moves();
+        let _ = &mut self.compute_possible_moves();
         let checks_and_pins: ChecksAndPins = self.look_for_checks_and_pins(
             king_position.0.try_into().unwrap(),
             king_position.1.try_into().unwrap(),
@@ -420,6 +423,7 @@ impl Board {
                 );
             }
         }
+        self.possible_moves = legal_moves;
     }
 
     pub fn display_possible_moves(&self) {
